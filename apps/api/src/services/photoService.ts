@@ -1,13 +1,13 @@
-import {
-  PutObjectCommand,
-  GetObjectCommand,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { v4 as uuidv4 } from 'uuid';
-import { s3Client } from '../lib/s3';
-import { prisma } from '../lib/prisma';
+import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env';
+import { prisma } from '../lib/prisma';
 import type { PhotoType } from '@prisma/client';
+
+cloudinary.config({
+  cloud_name: env.CLOUDINARY_CLOUD_NAME,
+  api_key: env.CLOUDINARY_API_KEY,
+  api_secret: env.CLOUDINARY_API_SECRET,
+});
 
 export interface UploadPhotoInput {
   ticketId: string;
@@ -29,41 +29,33 @@ export interface PhotoRecord {
 }
 
 /**
- * Uploads a photo to S3/MinIO and records it in the database.
+ * Uploads a photo to Cloudinary and records it in the database.
+ * s3Key stores the Cloudinary public_id for future management.
  */
 export async function uploadPhoto(input: UploadPhotoInput): Promise<PhotoRecord> {
-  const { ticketId, uploaderId, photoType, fileBuffer, mimeType, originalName } = input;
+  const { ticketId, uploaderId, photoType, fileBuffer } = input;
 
-  // Verify ticket exists
   const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
   if (!ticket) {
     throw new Error(`Ticket ${ticketId} not found`);
   }
 
-  // Build S3 key
-  const ext = originalName.split('.').pop() ?? 'jpg';
-  const s3Key = `tickets/${ticketId}/${photoType}/${uuidv4()}.${ext}`;
+  const result = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      { folder: `tickets/${ticketId}/${photoType}`, resource_type: 'image' },
+      (error, result) => {
+        if (error || !result) return reject(error ?? new Error('Upload failed'));
+        resolve({ secure_url: result.secure_url, public_id: result.public_id });
+      }
+    ).end(fileBuffer);
+  });
 
-  // Upload to S3/MinIO
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: env.S3_BUCKET,
-      Key: s3Key,
-      Body: fileBuffer,
-      ContentType: mimeType,
-    })
-  );
-
-  // Build public URL (MinIO path-style)
-  const url = `${env.S3_ENDPOINT}/${env.S3_BUCKET}/${s3Key}`;
-
-  // Persist to DB
   const photo = await prisma.ticketPhoto.create({
     data: {
       ticketId,
       uploaderId,
-      url,
-      s3Key,
+      url: result.secure_url,
+      s3Key: result.public_id,
       photoType,
     },
   });
@@ -72,12 +64,8 @@ export async function uploadPhoto(input: UploadPhotoInput): Promise<PhotoRecord>
 }
 
 /**
- * Generates a pre-signed URL for secure photo access.
+ * Returns the Cloudinary URL for a photo (already public, no signing needed).
  */
-export async function getPhotoSignedUrl(s3Key: string, expiresInSeconds = 3600): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: env.S3_BUCKET,
-    Key: s3Key,
-  });
-  return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+export async function getPhotoSignedUrl(publicId: string): Promise<string> {
+  return cloudinary.url(publicId, { secure: true });
 }
