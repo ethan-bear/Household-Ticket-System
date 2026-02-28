@@ -14,6 +14,7 @@ export interface Ticket {
   assignedUserId?: string;
   assignedUser?: { id: string; name: string; specialty?: string };
   photos: Array<{ id: string; url: string; photoType: string }>;
+  recurringTemplate?: { frequency: string } | null;
   createdAt: string;
   dueAt?: string;
 }
@@ -75,6 +76,7 @@ export function useCreateTicket() {
       severity: string;
       isInspection?: boolean;
       assignedUserId?: string;
+      dueAt?: string;
     }) => {
       const res = await client.post('/tickets', data);
       return res.data.data.ticket;

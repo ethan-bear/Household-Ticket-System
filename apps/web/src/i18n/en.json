@@ -67,6 +67,14 @@
     "used": "Used",
     "error": "Sorry, I could not process your request."
   },
+  "frequency": {
+    "daily":    "Daily",
+    "weekly":   "Weekly",
+    "monthly":  "Monthly",
+    "custom":   "Custom Recurring",
+    "oneTime":  "One-Time Tasks",
+    "fixToday": "Fix Today"
+  },
   "interrupt": {
     "title": "URGENT TASK",
     "acknowledge": "I Understand"

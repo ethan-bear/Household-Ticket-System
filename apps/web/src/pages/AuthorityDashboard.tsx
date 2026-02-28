@@ -8,7 +8,7 @@ import { SeverityBadge } from '../components/SeverityBadge';
 import { StatusChip } from '../components/StatusChip';
 import { useAllScores } from '../hooks/useScore';
 
-type SortKey = 'title' | 'status' | 'severity' | 'assignedUser';
+type SortKey = 'title' | 'status' | 'severity' | 'assignedUser' | 'createdAt' | 'dueAt';
 type SortDir = 'asc' | 'desc';
 
 const SEVERITY_ORDER = { minor: 0, needs_fix_today: 1, immediate_interrupt: 2 };
@@ -21,11 +21,19 @@ function sortTickets(tickets: Ticket[], key: SortKey, dir: SortDir): Ticket[] {
     else if (key === 'status') cmp = (STATUS_ORDER[a.status as keyof typeof STATUS_ORDER] ?? 0) - (STATUS_ORDER[b.status as keyof typeof STATUS_ORDER] ?? 0);
     else if (key === 'severity') cmp = (SEVERITY_ORDER[a.severity] ?? 0) - (SEVERITY_ORDER[b.severity] ?? 0);
     else if (key === 'assignedUser') cmp = (a.assignedUser?.name ?? '').localeCompare(b.assignedUser?.name ?? '');
+    else if (key === 'createdAt') cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    else if (key === 'dueAt') {
+      // Tickets without a deadline always sort last regardless of direction
+      if (!a.dueAt && !b.dueAt) return 0;
+      if (!a.dueAt) return 1;
+      if (!b.dueAt) return -1;
+      cmp = new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    }
     return dir === 'asc' ? cmp : -cmp;
   });
 }
 
-const EMPTY_FORM = { title: '', description: '', area: '', category: '', severity: 'minor', assignedUserId: '', isInspection: false };
+const EMPTY_FORM = { title: '', description: '', area: '', category: '', severity: 'minor', assignedUserId: '', isInspection: false, dueAt: '' };
 
 export function AuthorityDashboard() {
   const { t, i18n } = useTranslation();
@@ -64,8 +72,13 @@ export function AuthorityDashboard() {
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    const { dueAt, ...rest } = form;
     createTicket.mutate(
-      { ...form, assignedUserId: form.assignedUserId || undefined },
+      {
+        ...rest,
+        assignedUserId: rest.assignedUserId || undefined,
+        dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+      },
       { onSuccess: () => { setShowCreate(false); setForm(EMPTY_FORM); } }
     );
   }
@@ -144,8 +157,12 @@ export function AuthorityDashboard() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('assignedUser')}>
                         Assigned To <SortIcon col="assignedUser" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700">Created</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deadline</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('createdAt')}>
+                        Created <SortIcon col="createdAt" />
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('dueAt')}>
+                        Deadline <SortIcon col="dueAt" />
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
@@ -308,6 +325,15 @@ export function AuthorityDashboard() {
                 />
                 Inspection ticket (requires before + after photos)
               </label>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Deadline (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={form.dueAt}
+                  onChange={(e) => setForm({ ...form, dueAt: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"

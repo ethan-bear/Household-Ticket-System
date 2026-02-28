@@ -67,6 +67,14 @@
     "used": "Usó",
     "error": "Lo siento, no pude procesar tu solicitud."
   },
+  "frequency": {
+    "daily":    "Diario",
+    "weekly":   "Semanal",
+    "monthly":  "Mensual",
+    "custom":   "Recurrente Personalizado",
+    "oneTime":  "Tareas Únicas",
+    "fixToday": "Arreglar Hoy"
+  },
   "interrupt": {
     "title": "TAREA URGENTE",
     "acknowledge": "Entendido"

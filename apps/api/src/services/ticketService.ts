@@ -216,6 +216,7 @@ export async function getTickets(filters: {
       assignedUser: { select: { id: true, name: true, role: true, specialty: true } },
       createdBy: { select: { id: true, name: true, role: true } },
       photos: true,
+      recurringTemplate: { select: { frequency: true } },
     },
     orderBy: [
       { severity: 'desc' },

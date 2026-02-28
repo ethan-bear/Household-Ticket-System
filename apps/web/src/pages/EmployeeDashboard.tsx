@@ -120,8 +120,40 @@ export function EmployeeDashboard() {
     setAcknowledgedInterrupts((prev) => new Set([...prev, id]));
   }
 
-  const pinnedTickets = tickets.filter((t) => t.severity === 'needs_fix_today' && t.status !== 'closed');
-  const otherTickets = tickets.filter((t) => t.severity !== 'needs_fix_today' && t.status !== 'closed' && t.status !== 'skipped');
+  // Sort by nearest deadline (tickets without a deadline go last)
+  function sortByDeadline(ts: typeof tickets) {
+    return [...ts].sort((a, b) => {
+      if (!a.dueAt && !b.dueAt) return 0;
+      if (!a.dueAt) return 1;
+      if (!b.dueAt) return -1;
+      return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    });
+  }
+
+  const activeTickets = tickets.filter((t) => t.status !== 'closed' && t.status !== 'skipped');
+  const pinnedTickets = sortByDeadline(activeTickets.filter((t) => t.severity === 'needs_fix_today'));
+  const remaining = activeTickets.filter((t) => t.severity !== 'needs_fix_today');
+
+  const FREQ_ORDER = ['daily', 'weekly', 'monthly', 'custom', 'one_time'] as const;
+  const FREQ_META: Record<string, { icon: string; labelKey: string; color: string }> = {
+    daily:    { icon: '🔁', labelKey: 'frequency.daily',   color: 'text-blue-700' },
+    weekly:   { icon: '📅', labelKey: 'frequency.weekly',  color: 'text-purple-700' },
+    monthly:  { icon: '🗓️', labelKey: 'frequency.monthly', color: 'text-indigo-700' },
+    custom:   { icon: '⚙️', labelKey: 'frequency.custom',  color: 'text-gray-700' },
+    one_time: { icon: '📋', labelKey: 'frequency.oneTime', color: 'text-gray-600' },
+  };
+
+  const groups: Partial<Record<string, typeof tickets>> = {};
+  for (const ticket of remaining) {
+    const key = ticket.recurringTemplate?.frequency ?? 'one_time';
+    if (!groups[key]) groups[key] = [];
+    groups[key]!.push(ticket);
+  }
+  const visibleGroups = FREQ_ORDER
+    .filter((f) => (groups[f]?.length ?? 0) > 0)
+    .map((f) => ({ key: f, meta: FREQ_META[f], tickets: sortByDeadline(groups[f]!) }));
+
+  const hasAnyTasks = activeTickets.length > 0;
 
   return (
     <>
@@ -148,33 +180,42 @@ export function EmployeeDashboard() {
           </div>
         </header>
 
-        <div className="p-4 space-y-4 max-w-2xl mx-auto">
+        <div className="p-4 space-y-5 max-w-2xl mx-auto">
           {/* Score gauge */}
           {scoreData?.latest && <ScoreGauge score={scoreData.latest.totalScore} />}
 
-          {/* Pinned (needs_fix_today) */}
-          {pinnedTickets.length > 0 && (
-            <div>
-              <h2 className="text-sm font-semibold text-yellow-700 mb-2">📌 Fix Today</h2>
-              <div className="space-y-3">
-                {pinnedTickets.map((ticket) => (
-                  <TicketCard key={ticket.id} ticket={ticket} onTransition={handleTransition} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* All other tasks */}
           {isLoading ? (
             <p className="text-center text-gray-400 py-8">{t('app.loading')}</p>
-          ) : otherTickets.length === 0 && pinnedTickets.length === 0 ? (
+          ) : !hasAnyTasks ? (
             <p className="text-center text-gray-400 py-12 text-lg">{t('ticket.noTasks')}</p>
           ) : (
-            <div className="space-y-3">
-              {otherTickets.map((ticket) => (
-                <TicketCard key={ticket.id} ticket={ticket} onTransition={handleTransition} />
+            <>
+              {/* Pinned: needs_fix_today — sorted by deadline */}
+              {pinnedTickets.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-yellow-700 mb-2">📌 {t('frequency.fixToday')}</h2>
+                  <div className="space-y-3">
+                    {pinnedTickets.map((ticket) => (
+                      <TicketCard key={ticket.id} ticket={ticket} onTransition={handleTransition} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Grouped by recurring frequency, each sorted by nearest deadline */}
+              {visibleGroups.map(({ key, meta, tickets: groupTickets }) => (
+                <div key={key}>
+                  <h2 className={`text-sm font-semibold mb-2 ${meta.color}`}>
+                    {meta.icon} {t(meta.labelKey)}
+                  </h2>
+                  <div className="space-y-3">
+                    {groupTickets.map((ticket) => (
+                      <TicketCard key={ticket.id} ticket={ticket} onTransition={handleTransition} />
+                    ))}
+                  </div>
+                </div>
               ))}
-            </div>
+            </>
           )}
         </div>
       </div>
