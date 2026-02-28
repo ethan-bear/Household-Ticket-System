@@ -4,6 +4,52 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 
+interface EmployeeStat {
+  user: { id: string; name: string; specialty?: string };
+  open: number;
+  closed: number;
+  skipped: number;
+  rejected: number;
+  qualityPenalty: number;
+  consistencyPenalty: number;
+  totalPenalty: number;
+}
+
+interface RepeatIssue {
+  id: string;
+  title: string;
+  area: string;
+  category: string;
+  severity: string;
+  assignedUser?: { name: string };
+}
+
+interface HotSpot {
+  area: string;
+  total: number;
+  skipped: number;
+  rejected: number;
+  issueScore: number;
+}
+
+interface ReportData {
+  period: { start: string; end: string };
+  summary: { open: number; inProgress: number; closed: number; skipped: number; reopened: number };
+  employeeStats: EmployeeStat[];
+  repeatIssues: RepeatIssue[];
+  trends: {
+    hotSpots: HotSpot[];
+    overdueCount: number;
+    noCompletions: string[];
+    mostPenalized: EmployeeStat | null;
+  };
+}
+
+function PenaltyBadge({ value }: { value: number }) {
+  if (value === 0) return <span className="text-gray-400">—</span>;
+  return <span className="text-red-600 font-semibold">−{value}</span>;
+}
+
 export function WeeklyReport() {
   const { t } = useTranslation();
   const [weekOffset, setWeekOffset] = useState(0);
@@ -12,9 +58,11 @@ export function WeeklyReport() {
     queryKey: ['report', weekOffset],
     queryFn: async () => {
       const res = await client.get('/reports/weekly', { params: { weekOffset } });
-      return res.data.data;
+      return res.data.data as ReportData;
     },
   });
+
+  const fmt = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -24,67 +72,171 @@ export function WeeklyReport() {
       </header>
 
       <div className="p-6 max-w-4xl mx-auto space-y-6">
+
+        {/* Week navigation */}
         <div className="flex items-center gap-4">
-          <button onClick={() => setWeekOffset((w) => w + 1)} className="px-3 py-1 border rounded text-sm">← Prev</button>
-          <span className="text-sm text-gray-600">{weekOffset === 0 ? 'This Week' : `${weekOffset} week(s) ago`}</span>
-          <button onClick={() => setWeekOffset((w) => Math.max(0, w - 1))} disabled={weekOffset === 0} className="px-3 py-1 border rounded text-sm disabled:opacity-40">Next →</button>
+          <button onClick={() => setWeekOffset((w) => w + 1)} className="px-3 py-1 border rounded text-sm hover:bg-gray-50">← Prev</button>
+          <span className="text-sm font-medium text-gray-700">
+            {data ? `${fmt(data.period.start)} – ${fmt(data.period.end)}` : weekOffset === 0 ? 'This Week' : `${weekOffset} week(s) ago`}
+          </span>
+          <button onClick={() => setWeekOffset((w) => Math.max(0, w - 1))} disabled={weekOffset === 0} className="px-3 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-50">Next →</button>
         </div>
 
         {isLoading ? (
-          <p className="text-center text-gray-400">{t('app.loading')}</p>
+          <p className="text-center text-gray-400 py-12">{t('app.loading')}</p>
         ) : data ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
-                { label: t('report.open'), value: data.summary.open, color: 'bg-gray-100' },
-                { label: t('report.closed'), value: data.summary.closed, color: 'bg-green-100' },
-                { label: t('report.skipped'), value: data.summary.skipped, color: 'bg-yellow-100' },
-                { label: t('report.rejections'), value: data.summary.rejections, color: 'bg-red-100' },
+                { label: 'Open', value: data.summary.open, color: 'bg-gray-100 text-gray-800' },
+                { label: 'In Progress', value: data.summary.inProgress, color: 'bg-blue-50 text-blue-800' },
+                { label: 'Closed', value: data.summary.closed, color: 'bg-green-50 text-green-800' },
+                { label: 'Skipped', value: data.summary.skipped, color: 'bg-yellow-50 text-yellow-800' },
+                { label: 'Reopened', value: data.summary.reopened, color: 'bg-red-50 text-red-800' },
               ].map((item) => (
                 <div key={item.label} className={`${item.color} rounded-xl p-4 text-center`}>
                   <p className="text-2xl font-bold">{item.value}</p>
-                  <p className="text-xs text-gray-500 mt-1">{item.label}</p>
+                  <p className="text-xs mt-1 opacity-70">{item.label}</p>
                 </div>
               ))}
             </div>
 
+            {/* Per-employee table */}
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b">
+                <h2 className="font-semibold text-gray-900">Employee Breakdown</h2>
+              </div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Closed</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Open</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Done</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Skipped</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Rejected</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Reopened</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Quality Pen.</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Consist. Pen.</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total Pen.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {data.employeeStats?.map((stat: { user: { id: string; name: string }; open: number; closed: number; skipped: number; rejected: number }) => (
-                    <tr key={stat.user.id}>
-                      <td className="px-4 py-3 font-medium">{stat.user.name}</td>
-                      <td className="px-4 py-3 text-center">{stat.open}</td>
-                      <td className="px-4 py-3 text-center text-green-600 font-semibold">{stat.closed}</td>
-                      <td className="px-4 py-3 text-center text-yellow-600">{stat.skipped}</td>
-                      <td className="px-4 py-3 text-center text-red-600">{stat.rejected}</td>
+                  {data.employeeStats.map((stat) => (
+                    <tr key={stat.user.id} className={stat.totalPenalty > 0 ? 'bg-red-50/30' : ''}>
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-gray-900">{stat.user.name}</span>
+                        {stat.user.specialty && <span className="ml-2 text-xs text-gray-400 capitalize">{stat.user.specialty}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center text-green-700 font-semibold">{stat.closed}</td>
+                      <td className="px-4 py-3 text-center text-gray-500">{stat.open}</td>
+                      <td className="px-4 py-3 text-center text-yellow-600">{stat.skipped || '—'}</td>
+                      <td className="px-4 py-3 text-center text-red-600">{stat.rejected || '—'}</td>
+                      <td className="px-4 py-3 text-center"><PenaltyBadge value={stat.qualityPenalty} /></td>
+                      <td className="px-4 py-3 text-center"><PenaltyBadge value={stat.consistencyPenalty} /></td>
+                      <td className="px-4 py-3 text-center font-bold"><PenaltyBadge value={stat.totalPenalty} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {data.repeatIssues?.length > 0 && (
-              <div className="bg-orange-50 rounded-xl p-4">
-                <h3 className="font-semibold text-orange-800 mb-3">⚠️ {t('report.repeatIssues')}</h3>
-                <div className="space-y-2">
-                  {data.repeatIssues.map((issue: { id: string; title: string; area: string; category: string }) => (
-                    <div key={issue.id} className="text-sm text-orange-700">
-                      {issue.title} — {issue.area} › {issue.category}
+            {/* Repeat issues */}
+            {data.repeatIssues.length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-orange-200">
+                  <h2 className="font-semibold text-orange-800">⚠️ Repeat Issues ({data.repeatIssues.length})</h2>
+                  <p className="text-xs text-orange-600 mt-0.5">Same area + category as a ticket closed within the last 7 days</p>
+                </div>
+                <div className="divide-y divide-orange-100">
+                  {data.repeatIssues.map((issue) => (
+                    <div key={issue.id} className="px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium text-orange-900">{issue.title}</span>
+                        <span className="ml-2 text-xs text-orange-500">{issue.area} › {issue.category}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-orange-600">
+                        {issue.assignedUser && <span>{issue.assignedUser.name}</span>}
+                        <span className="capitalize">{issue.severity.replace(/_/g, ' ')}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Trends & patterns */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b">
+                <h2 className="font-semibold text-gray-900">Trends & Patterns</h2>
+              </div>
+              <div className="p-4 space-y-4">
+
+                {/* Overdue */}
+                <div className="flex items-start gap-3">
+                  <span className="text-lg">⏰</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Overdue Tickets</p>
+                    <p className="text-sm text-gray-500">
+                      {data.trends.overdueCount === 0
+                        ? 'No overdue tickets — all tasks are on track.'
+                        : <span className="text-red-600 font-semibold">{data.trends.overdueCount} ticket{data.trends.overdueCount > 1 ? 's' : ''} past due</span>}
+                    </p>
+                  </div>
+                </div>
+
+                {/* No completions */}
+                {data.trends.noCompletions.length > 0 && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg">🚨</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">No Completions This Week</p>
+                      <p className="text-sm text-red-600">{data.trends.noCompletions.join(', ')} closed zero tickets despite having assigned tasks.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Most penalized */}
+                {data.trends.mostPenalized && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg">📉</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Most Penalized</p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-semibold text-red-600">{data.trends.mostPenalized.user.name}</span>
+                        {' '}incurred <span className="font-semibold">−{data.trends.mostPenalized.totalPenalty} pts</span> this week
+                        ({data.trends.mostPenalized.rejected} rejection{data.trends.mostPenalized.rejected !== 1 ? 's' : ''},
+                        {' '}{data.trends.mostPenalized.skipped} skip{data.trends.mostPenalized.skipped !== 1 ? 's' : ''}).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hot spots */}
+                {data.trends.hotSpots.length > 0 && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg">🔥</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Problem Areas</p>
+                      <ul className="mt-1 space-y-1">
+                        {data.trends.hotSpots.map((spot) => (
+                          <li key={spot.area} className="text-sm text-gray-600">
+                            <span className="font-medium">{spot.area}</span>
+                            {' — '}
+                            {spot.skipped > 0 && <span className="text-yellow-600">{spot.skipped} skipped</span>}
+                            {spot.skipped > 0 && spot.rejected > 0 && ', '}
+                            {spot.rejected > 0 && <span className="text-red-600">{spot.rejected} rejected</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {data.trends.hotSpots.length === 0 && data.trends.overdueCount === 0 && data.trends.noCompletions.length === 0 && !data.trends.mostPenalized && (
+                  <p className="text-sm text-green-700 font-medium">✅ No notable issues this week.</p>
+                )}
+              </div>
+            </div>
           </>
         ) : null}
       </div>
