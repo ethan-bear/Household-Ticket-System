@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useTickets } from '../hooks/useTickets';
@@ -136,7 +137,7 @@ export function EmployeeDashboard() {
             {user?.specialty && <p className="text-xs text-gray-500 capitalize">{user.specialty}</p>}
           </div>
           <div className="flex items-center gap-3">
-            {/* Language toggle */}
+            <Link to="/chat" className="text-sm text-blue-600 font-medium">{t('nav.chat')}</Link>
             <button
               onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'es' : 'en')}
               className="text-sm font-medium text-blue-600 border border-blue-200 rounded-full px-3 py-1"

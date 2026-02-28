@@ -63,7 +63,9 @@
     "title": "Assistant",
     "placeholder": "Ask me anything...",
     "send": "Send",
-    "language": "Language"
+    "language": "Language",
+    "used": "Used",
+    "error": "Sorry, I could not process your request."
   },
   "interrupt": {
     "title": "URGENT TASK",

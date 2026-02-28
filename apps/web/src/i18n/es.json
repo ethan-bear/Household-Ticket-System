@@ -63,7 +63,9 @@
     "title": "Asistente",
     "placeholder": "Pregúntame algo...",
     "send": "Enviar",
-    "language": "Idioma"
+    "language": "Idioma",
+    "used": "Usó",
+    "error": "Lo siento, no pude procesar tu solicitud."
   },
   "interrupt": {
     "title": "TAREA URGENTE",
