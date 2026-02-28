@@ -9,7 +9,7 @@ import { useAllScores } from '../hooks/useScore';
 
 export function AuthorityDashboard() {
   const { t, i18n } = useTranslation();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const { data: tickets = [], isLoading } = useTickets();
   const { data: scoreSummaries = [] } = useAllScores();
   const transition = useTransitionTicket();
