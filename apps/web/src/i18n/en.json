@@ -1,0 +1,72 @@
+{
+  "app": {
+    "title": "Household Management",
+    "loading": "Loading..."
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password",
+    "welcome": "Welcome back"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "tickets": "Tasks",
+    "report": "Report",
+    "chat": "Chat",
+    "templates": "Templates"
+  },
+  "ticket": {
+    "create": "Create Task",
+    "title": "Title",
+    "description": "Description",
+    "area": "Area",
+    "category": "Category",
+    "severity": "Severity",
+    "status": {
+      "open": "Open",
+      "in_progress": "In Progress",
+      "needs_review": "Needs Review",
+      "closed": "Closed",
+      "skipped": "Skipped"
+    },
+    "severity_label": {
+      "minor": "Minor",
+      "needs_fix_today": "Fix Today",
+      "immediate_interrupt": "URGENT"
+    },
+    "noTasks": "No tasks found",
+    "submitForReview": "Submit for Review",
+    "startTask": "Start Task",
+    "close": "Mark Complete",
+    "reject": "Send Back",
+    "addPhoto": "Add Photo"
+  },
+  "score": {
+    "title": "My Score",
+    "quality": "Quality",
+    "consistency": "Consistency",
+    "speed": "Speed",
+    "volume": "Volume",
+    "total": "Total"
+  },
+  "report": {
+    "title": "Weekly Report",
+    "open": "Open",
+    "closed": "Completed",
+    "skipped": "Skipped",
+    "rejections": "Rejections",
+    "repeatIssues": "Repeat Issues"
+  },
+  "chat": {
+    "title": "Assistant",
+    "placeholder": "Ask me anything...",
+    "send": "Send",
+    "language": "Language"
+  },
+  "interrupt": {
+    "title": "URGENT TASK",
+    "acknowledge": "I Understand"
+  }
+}

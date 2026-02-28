@@ -1,0 +1,31 @@
+{
+  "name": "household-accountability-system",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter api dev\" \"pnpm --filter web dev\"",
+    "build": "pnpm --filter domain build && pnpm --filter api build && pnpm --filter web build",
+    "test": "pnpm --filter domain test",
+    "test:e2e": "pnpm --filter web test:e2e",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "bcryptjs": "^2.4.3",
+    "concurrently": "^8.2.2",
+    "prisma": "5.22.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0"
+  }
+}

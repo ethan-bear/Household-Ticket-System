@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  mother
+  father
+  employee
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  needs_review
+  closed
+  skipped
+}
+
+enum Severity {
+  minor
+  needs_fix_today
+  immediate_interrupt
+}
+
+enum PhotoType {
+  before
+  after
+  completion
+}
+
+enum Frequency {
+  daily
+  weekly
+  monthly
+  custom
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  specialty    String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  assignedTickets   Ticket[]        @relation("AssignedTickets")
+  createdTickets    Ticket[]        @relation("CreatedTickets")
+  uploadedPhotos    TicketPhoto[]
+  auditLogs         TicketAuditLog[]
+  scoreRecords      ScoreRecord[]
+  revokedTokens     RevokedToken[]
+  recurringTemplates RecurringTemplate[]
+}
+
+model Ticket {
+  id                  String       @id @default(cuid())
+  title               String
+  description         String
+  status              TicketStatus @default(open)
+  severity            Severity     @default(minor)
+  isInspection        Boolean      @default(false)
+  area                String
+  category            String
+  isRepeatIssue       Boolean      @default(false)
+  previousTicketId    String?
+
+  assignedUserId      String?
+  createdById         String
+  recurringTemplateId String?
+
+  dueAt               DateTime?
+  closedAt            DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  // Relations
+  assignedUser        User?                @relation("AssignedTickets", fields: [assignedUserId], references: [id])
+  createdBy           User                 @relation("CreatedTickets", fields: [createdById], references: [id])
+  recurringTemplate   RecurringTemplate?   @relation(fields: [recurringTemplateId], references: [id])
+  photos              TicketPhoto[]
+  auditLogs           TicketAuditLog[]
+  recurringInstances  RecurringInstance[]
+}
+
+model TicketPhoto {
+  id         String    @id @default(cuid())
+  ticketId   String
+  uploaderId String
+  url        String
+  s3Key      String
+  photoType  PhotoType
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  ticket     Ticket    @relation(fields: [ticketId], references: [id])
+  uploader   User      @relation(fields: [uploaderId], references: [id])
+}
+
+model TicketAuditLog {
+  id          String       @id @default(cuid())
+  ticketId    String
+  changedById String
+  fromStatus  TicketStatus?
+  toStatus    TicketStatus
+  note        String?
+  createdAt   DateTime     @default(now())
+
+  // Relations — NO cascade delete: audit log is immutable forever
+  ticket      Ticket       @relation(fields: [ticketId], references: [id])
+  changedBy   User         @relation(fields: [changedById], references: [id])
+}
+
+model RecurringTemplate {
+  id              String    @id @default(cuid())
+  name            String
+  description     String
+  frequency       Frequency
+  assignedRoles   Role[]    @default([])
+  severityDefault Severity  @default(minor)
+  area            String
+  category        String
+  isActive        Boolean   @default(true)
+  createdById     String
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  createdBy       User                @relation(fields: [createdById], references: [id])
+  tickets         Ticket[]
+  instances       RecurringInstance[]
+}
+
+model RecurringInstance {
+  id           String            @id @default(cuid())
+  templateId   String
+  ticketId     String
+  scheduledFor DateTime
+  generatedAt  DateTime          @default(now())
+
+  // Relations
+  template     RecurringTemplate @relation(fields: [templateId], references: [id])
+  ticket       Ticket            @relation(fields: [ticketId], references: [id])
+}
+
+model ScoreRecord {
+  id                String   @id @default(cuid())
+  userId            String
+  periodStart       DateTime
+  periodEnd         DateTime
+  qualityScore      Float
+  consistencyScore  Float
+  speedScore        Float
+  volumeScore       Float
+  totalScore        Float
+  computedAt        DateTime @default(now())
+
+  // Relations
+  user              User     @relation(fields: [userId], references: [id])
+}
+
+model RevokedToken {
+  id        String   @id @default(cuid())
+  jti       String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+}

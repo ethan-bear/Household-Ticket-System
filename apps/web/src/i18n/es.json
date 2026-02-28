@@ -1,0 +1,72 @@
+{
+  "app": {
+    "title": "Gestión del Hogar",
+    "loading": "Cargando..."
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "logout": "Cerrar Sesión",
+    "email": "Correo",
+    "password": "Contraseña",
+    "welcome": "Bienvenido"
+  },
+  "nav": {
+    "dashboard": "Inicio",
+    "tickets": "Tareas",
+    "report": "Reporte",
+    "chat": "Chat",
+    "templates": "Plantillas"
+  },
+  "ticket": {
+    "create": "Crear Tarea",
+    "title": "Título",
+    "description": "Descripción",
+    "area": "Área",
+    "category": "Categoría",
+    "severity": "Urgencia",
+    "status": {
+      "open": "Abierto",
+      "in_progress": "En Progreso",
+      "needs_review": "Para Revisión",
+      "closed": "Completado",
+      "skipped": "Omitido"
+    },
+    "severity_label": {
+      "minor": "Menor",
+      "needs_fix_today": "Hoy",
+      "immediate_interrupt": "URGENTE"
+    },
+    "noTasks": "No hay tareas",
+    "submitForReview": "Enviar a Revisión",
+    "startTask": "Iniciar Tarea",
+    "close": "Marcar Completo",
+    "reject": "Regresar",
+    "addPhoto": "Agregar Foto"
+  },
+  "score": {
+    "title": "Mi Puntuación",
+    "quality": "Calidad",
+    "consistency": "Consistencia",
+    "speed": "Velocidad",
+    "volume": "Volumen",
+    "total": "Total"
+  },
+  "report": {
+    "title": "Reporte Semanal",
+    "open": "Abiertas",
+    "closed": "Completadas",
+    "skipped": "Omitidas",
+    "rejections": "Rechazadas",
+    "repeatIssues": "Problemas Repetidos"
+  },
+  "chat": {
+    "title": "Asistente",
+    "placeholder": "Pregúntame algo...",
+    "send": "Enviar",
+    "language": "Idioma"
+  },
+  "interrupt": {
+    "title": "TAREA URGENTE",
+    "acknowledge": "Entendido"
+  }
+}
