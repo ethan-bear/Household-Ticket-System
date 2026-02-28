@@ -1,6 +1,7 @@
 {
   "name": "household-accountability-system",
   "private": true,
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev": "concurrently \"pnpm --filter api dev\" \"pnpm --filter web dev\"",
     "build": "pnpm --filter domain build && pnpm --filter api build && pnpm --filter web build",
