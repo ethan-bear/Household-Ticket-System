@@ -45,6 +45,14 @@ async function main() {
   const anaId = createdUsers['Ana'];
 
   // ─── Recurring Templates ──────────────────────────────────────────────────
+  // Only seed if no templates exist yet
+
+  const templateCount = await prisma.recurringTemplate.count();
+  if (templateCount > 0) {
+    console.log('  ⏭  Templates already seeded, skipping.');
+    console.log('\n✅ Seed complete!');
+    return;
+  }
 
   const dailyCleaningTemplate = await prisma.recurringTemplate.create({
     data: {
