@@ -3,6 +3,30 @@
 
 ---
 
+## Compliance Audit (February 28, 2026)
+
+A full line-by-line audit was conducted against every requirement in `CLAUDE.md`. All 13 sections passed with no deviations:
+
+| Section | Status |
+|---|---|
+| User Roles & RBAC | ✅ Server-side enforcement on every mutation and service call |
+| Ticket Lifecycle | ✅ All transitions correct, closed is terminal, rejection path tracked |
+| Evidence Rules | ✅ Photo validation on needs_review, before+after enforced for inspections |
+| Severity Levels | ✅ Color coding, multipliers, deadlines, InterruptAlert overlay |
+| Scoring Model | ✅ Pure function, exact 40/30/20/10 weights, all formulas correct |
+| Recurring Tasks | ✅ Templates, daily cron, skip logic, native `Role[]` Postgres array |
+| Data Models | ✅ All 8 models, no cascade delete on audit log, specialty display-only |
+| Architecture Principles | ✅ Thin routes, TicketTransitionError, audit on every transition |
+| Tech Stack | ✅ React/TS/Tailwind, Express/Prisma, JWT+RevokedToken, Vitest |
+| Bilingual UI | ✅ EN/ES i18n, icon cards, color coding, InterruptAlert, vibrate |
+| Project Structure | ✅ All expected files and directories present |
+| Dummy Users | ✅ All 6 users with correct roles and credentials |
+| Chat Interface | ✅ 4 tools, role-scoped, bilingual, Haiku model |
+
+47 domain unit tests all pass (ticketStateMachine: 20, scoringEngine: 19, repeatIssueDetector: 8).
+
+---
+
 ## Stack Overview & Rationale
 
 ### Monorepo — pnpm Workspaces
