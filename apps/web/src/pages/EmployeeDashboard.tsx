@@ -9,6 +9,7 @@ import { InterruptAlert } from '../components/InterruptAlert';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { useTransitionTicket } from '../hooks/useTickets';
 import type { Ticket } from '../hooks/useTickets';
+import { formatTimeRemaining, formatDate } from '../lib/time';
 
 const AREA_ICONS: Record<string, string> = {
   kitchen: '🍳',
@@ -57,6 +58,14 @@ function TicketCard({ ticket, onTransition }: { ticket: Ticket; onTransition: (i
           </div>
           <StatusChip status={ticket.status} />
           <p className="text-sm text-gray-500 mt-1 truncate">{ticket.area} › {ticket.category}</p>
+          <div className="flex gap-3 mt-1 text-xs flex-wrap">
+            <span className="text-gray-400">Created {formatDate(ticket.createdAt)}</span>
+            {ticket.dueAt && (
+              <span className={formatTimeRemaining(ticket.dueAt).color}>
+                {formatDate(ticket.dueAt)} · {formatTimeRemaining(ticket.dueAt).text}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

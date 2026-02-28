@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
-import { useTickets, useTransitionTicket, useCreateTicket, type Ticket } from '../hooks/useTickets';
+import { useTickets, useTransitionTicket, useCreateTicket, useDeleteTicket, type Ticket } from '../hooks/useTickets';
+import { formatTimeRemaining, formatDate } from '../lib/time';
 import { SeverityBadge } from '../components/SeverityBadge';
 import { StatusChip } from '../components/StatusChip';
 import { useAllScores } from '../hooks/useScore';
@@ -28,11 +29,12 @@ const EMPTY_FORM = { title: '', description: '', area: '', category: '', severit
 
 export function AuthorityDashboard() {
   const { t, i18n } = useTranslation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { data: tickets = [], isLoading } = useTickets();
   const { data: scoreSummaries = [] } = useAllScores();
   const transition = useTransitionTicket();
   const createTicket = useCreateTicket();
+  const deleteTicket = useDeleteTicket();
 
   const [statusFilter, setStatusFilter] = useState('');
   const [tab, setTab] = useState<'tickets' | 'scores'>('tickets');
@@ -142,6 +144,8 @@ export function AuthorityDashboard() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('assignedUser')}>
                         Assigned To <SortIcon col="assignedUser" />
                       </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700">Created</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deadline</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
@@ -158,23 +162,44 @@ export function AuthorityDashboard() {
                         <td className="px-4 py-3"><StatusChip status={ticket.status} /></td>
                         <td className="px-4 py-3"><SeverityBadge severity={ticket.severity} /></td>
                         <td className="px-4 py-3 text-gray-600">{ticket.assignedUser?.name ?? '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{formatDate(ticket.createdAt)}</td>
+                        <td className="px-4 py-3 text-xs">
+                          {ticket.dueAt ? (
+                            <>
+                              <div className="text-gray-500">{formatDate(ticket.dueAt)}</div>
+                              <div className={formatTimeRemaining(ticket.dueAt).color}>
+                                {formatTimeRemaining(ticket.dueAt).text}
+                              </div>
+                            </>
+                          ) : <span className="text-gray-300">—</span>}
+                        </td>
                         <td className="px-4 py-3">
-                          {ticket.status === 'needs_review' && (
-                            <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
+                            {ticket.status === 'needs_review' && (
+                              <>
+                                <button
+                                  onClick={() => handleTransition(ticket.id, 'closed')}
+                                  className="text-xs bg-green-600 text-white px-2 py-1 rounded"
+                                >
+                                  {t('ticket.close')}
+                                </button>
+                                <button
+                                  onClick={() => handleTransition(ticket.id, 'in_progress', 'rejected')}
+                                  className="text-xs bg-red-500 text-white px-2 py-1 rounded"
+                                >
+                                  {t('ticket.reject')}
+                                </button>
+                              </>
+                            )}
+                            {user?.role === 'mother' && (
                               <button
-                                onClick={() => handleTransition(ticket.id, 'closed')}
-                                className="text-xs bg-green-600 text-white px-2 py-1 rounded"
+                                onClick={() => { if (confirm('Delete this ticket permanently?')) deleteTicket.mutate(ticket.id); }}
+                                className="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-red-700"
                               >
-                                {t('ticket.close')}
+                                🗑 Delete
                               </button>
-                              <button
-                                onClick={() => handleTransition(ticket.id, 'in_progress', 'rejected')}
-                                className="text-xs bg-red-500 text-white px-2 py-1 rounded"
-                              >
-                                {t('ticket.reject')}
-                              </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

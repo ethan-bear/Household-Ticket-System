@@ -96,6 +96,27 @@ router.post('/', authenticate, async (req: Request, res: Response): Promise<void
   }
 });
 
+// DELETE /api/tickets/:id — mother only, any state
+router.delete(
+  '/:id',
+  authenticate,
+  requireRole('mother'),
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      res.status(404).json({ success: false, error: 'Ticket not found' });
+      return;
+    }
+    // Delete dependents first (no cascade on audit log by design)
+    await prisma.ticketPhoto.deleteMany({ where: { ticketId: id } });
+    await prisma.ticketAuditLog.deleteMany({ where: { ticketId: id } });
+    await prisma.recurringInstance.deleteMany({ where: { ticketId: id } });
+    await prisma.ticket.delete({ where: { id } });
+    res.json({ success: true, data: { message: 'Ticket deleted' } });
+  }
+);
+
 // PATCH /api/tickets/:id/status
 router.patch('/:id/status', authenticate, async (req: Request, res: Response): Promise<void> => {
   const parsed = transitionSchema.safeParse(req.body);
