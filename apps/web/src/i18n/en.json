@@ -15,7 +15,8 @@
     "tickets": "Tasks",
     "report": "Report",
     "chat": "Chat",
-    "templates": "Templates"
+    "templates": "Templates",
+    "team": "Team"
   },
   "ticket": {
     "create": "Create Task",

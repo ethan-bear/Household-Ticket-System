@@ -84,69 +84,25 @@ export function WeeklyReport() {
             <span className="text-gray-400 text-sm">{showLegend ? '▲ Hide' : '▼ Show'}</span>
           </button>
           {showLegend && (
-            <div className="px-4 pb-4 space-y-4 border-t pt-4">
-
-              <div className="text-xs text-gray-500 mb-2">
-                Final score = <span className="font-mono">(Quality × 0.40) + (Consistency × 0.30) + (Speed × 0.20) + (Volume × 0.10)</span>. All dimensions start at 100. Scores can go negative.
+            <div className="px-4 pb-4 border-t pt-4">
+              <p className="text-xs text-gray-500 mb-3">Everyone starts at <span className="font-semibold text-gray-700">100 pts</span> each period. Points are added or removed based on these events:</p>
+              <div className="space-y-2">
+                {[
+                  { icon: '❌', label: 'Work rejected (sent back by manager)', pts: '−10 pts', color: 'text-red-600' },
+                  { icon: '⏭️', label: 'Recurring task skipped',              pts: '−5 pts',  color: 'text-red-500' },
+                  { icon: '⏰', label: 'Task submitted late (per day late)',   pts: '−3 pts',  color: 'text-orange-500' },
+                  { icon: '⭐', label: 'Perfect period — no violations at all', pts: '+5 pts', color: 'text-green-600' },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <span>{row.icon}</span>
+                      <span>{row.label}</span>
+                    </span>
+                    <span className={`font-semibold font-mono ${row.color}`}>{row.pts}</span>
+                  </div>
+                ))}
               </div>
-
-              {/* Severity multipliers */}
-              <div>
-                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Severity Multipliers</p>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="bg-green-50 rounded-lg p-2 text-center"><span className="font-semibold text-green-700">Minor</span><br/><span className="text-gray-500">1×</span></div>
-                  <div className="bg-yellow-50 rounded-lg p-2 text-center"><span className="font-semibold text-yellow-700">Needs Fix Today</span><br/><span className="text-gray-500">2×</span></div>
-                  <div className="bg-red-50 rounded-lg p-2 text-center"><span className="font-semibold text-red-700">Immediate Interrupt</span><br/><span className="text-gray-500">4×</span></div>
-                </div>
-              </div>
-
-              {/* Quality */}
-              <div>
-                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Quality — 40% <span className="normal-case font-normal text-gray-400">(base 100, only decreases)</span></p>
-                <table className="w-full text-xs">
-                  <tbody className="divide-y divide-gray-100">
-                    <tr><td className="py-1 text-gray-600">Ticket rejected (sent back from Needs Review)</td><td className="py-1 text-right text-red-600 font-mono">−15 × multiplier</td></tr>
-                    <tr><td className="py-1 text-gray-500 pl-4">→ Minor rejection</td><td className="py-1 text-right text-red-500 font-mono">−15 pts</td></tr>
-                    <tr><td className="py-1 text-gray-500 pl-4">→ Needs Fix Today rejection</td><td className="py-1 text-right text-red-500 font-mono">−30 pts</td></tr>
-                    <tr><td className="py-1 text-gray-500 pl-4">→ Immediate Interrupt rejection</td><td className="py-1 text-right text-red-500 font-mono">−60 pts</td></tr>
-                    <tr><td className="py-1 text-gray-600">Failed inspection</td><td className="py-1 text-right text-red-600 font-mono">−10 × multiplier</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Consistency */}
-              <div>
-                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Consistency — 30% <span className="normal-case font-normal text-gray-400">(base 100)</span></p>
-                <table className="w-full text-xs">
-                  <tbody className="divide-y divide-gray-100">
-                    <tr><td className="py-1 text-gray-600">Each skipped recurring task</td><td className="py-1 text-right text-red-600 font-mono">−(50 ÷ total recurring)</td></tr>
-                    <tr><td className="py-1 text-gray-600">Zero skips all period (perfect streak)</td><td className="py-1 text-right text-green-600 font-mono">+10 pts</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Speed */}
-              <div>
-                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Speed — 20% <span className="normal-case font-normal text-gray-400">(based on deadlines)</span></p>
-                <table className="w-full text-xs">
-                  <tbody className="divide-y divide-gray-100">
-                    <tr><td className="py-1 text-gray-600">Completed within deadline</td><td className="py-1 text-right text-green-600 font-mono">100 pts</td></tr>
-                    <tr><td className="py-1 text-gray-600">Each hour past deadline</td><td className="py-1 text-right text-red-600 font-mono">−5 pts (min −100)</td></tr>
-                    <tr><td className="py-1 text-gray-500 pl-4">Immediate Interrupt deadline</td><td className="py-1 text-right text-gray-500 font-mono">2 hours</td></tr>
-                    <tr><td className="py-1 text-gray-500 pl-4">Needs Fix Today deadline</td><td className="py-1 text-right text-gray-500 font-mono">8 hours</td></tr>
-                    <tr><td className="py-1 text-gray-500 pl-4">Minor deadline</td><td className="py-1 text-right text-gray-500 font-mono">48 hours</td></tr>
-                    <tr><td className="py-1 text-gray-600">Minor with no due date — same calendar day</td><td className="py-1 text-right text-green-600 font-mono">100 pts</td></tr>
-                    <tr><td className="py-1 text-gray-600">Minor with no due date — different day</td><td className="py-1 text-right text-yellow-600 font-mono">80 pts</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Volume */}
-              <div>
-                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Volume — 10% <span className="normal-case font-normal text-gray-400">(relative output, 0–100)</span></p>
-                <p className="text-xs text-gray-600">Your completions ÷ highest completions by anyone this period × 100. The employee who closes the most tickets scores 100; everyone else scores proportionally less.</p>
-              </div>
-
+              <p className="text-xs text-gray-400 mt-3">Deadlines: Urgent = 2 hrs · Fix Today = 8 hrs · Minor = 48 hrs</p>
             </div>
           )}
         </div>

@@ -31,7 +31,7 @@ router.get(
   async (_req: Request, res: Response): Promise<void> => {
     const users = await prisma.user.findMany({
       where: { role: 'employee' },
-      select: { id: true, name: true, specialty: true },
+      select: { id: true, name: true, specialty: true, role: true },
     });
 
     const summaries = await Promise.all(

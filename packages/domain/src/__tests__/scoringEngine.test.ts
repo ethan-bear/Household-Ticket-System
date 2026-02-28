@@ -2,10 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { computeScore } from '../scoringEngine';
 import type { TicketHistory, ScoringInput } from '../scoringEngine';
 
-const now = new Date('2024-01-15T12:00:00Z');
 const period = {
   start: new Date('2024-01-08T00:00:00Z'),
-  end: new Date('2024-01-15T23:59:59Z'),
+  end:   new Date('2024-01-15T23:59:59Z'),
 };
 
 function makeTicket(overrides: Partial<TicketHistory> = {}): TicketHistory {
@@ -14,8 +13,8 @@ function makeTicket(overrides: Partial<TicketHistory> = {}): TicketHistory {
     severity: 'minor',
     isRecurring: false,
     isInspection: false,
-    openedAt: new Date('2024-01-10T08:00:00Z'),
-    submittedAt: new Date('2024-01-10T10:00:00Z'),
+    openedAt:    new Date('2024-01-10T08:00:00Z'),
+    submittedAt: new Date('2024-01-10T10:00:00Z'), // 2h, well within 48h
     events: ['completed'],
     wasSkipped: false,
     ...overrides,
@@ -32,174 +31,217 @@ function makeInput(overrides: Partial<ScoringInput> = {}): ScoringInput {
   };
 }
 
-describe('scoringEngine', () => {
+describe('scoringEngine (simplified)', () => {
+
   // ─── No tickets ─────────────────────────────────────────────────────────────
 
   describe('no tickets', () => {
-    it('returns quality=100, consistency=100, speed=100, volume=0 with no tickets', () => {
+    it('returns zero deductions and no bonus with no tickets', () => {
       const result = computeScore(makeInput());
-      expect(result.quality).toBe(100);
-      expect(result.consistency).toBe(100);
-      expect(result.speed).toBe(100);
+      expect(result.quality).toBe(0);
+      expect(result.consistency).toBe(0);
+      expect(result.speed).toBe(0);
       expect(result.volume).toBe(0);
     });
 
-    it('total = 100*0.4 + 100*0.3 + 100*0.2 + 0*0.1 = 90 with no tickets', () => {
+    it('total = 100 with no tickets (base score, no penalty, no bonus)', () => {
       const result = computeScore(makeInput());
-      expect(result.total).toBeCloseTo(90);
+      expect(result.total).toBe(100);
     });
   });
 
-  // ─── Quality ────────────────────────────────────────────────────────────────
+  // ─── Quality (rejections) ────────────────────────────────────────────────────
 
-  describe('quality score', () => {
-    it('rejection decrements quality by 15', () => {
+  describe('quality — rejection penalties', () => {
+    it('one rejection → quality = -10, total = 90', () => {
       const ticket = makeTicket({ events: ['rejection'] });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.quality).toBe(85); // 100 - 15*1
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.quality).toBe(-10);
+      expect(result.total).toBe(90);
     });
 
-    it('rejection with immediate_interrupt decrements quality by 60', () => {
-      const ticket = makeTicket({ severity: 'immediate_interrupt', events: ['rejection'] });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.quality).toBe(40); // 100 - 15*4
-    });
-
-    it('failed_inspection decrements quality by 10', () => {
-      const ticket = makeTicket({ events: ['failed_inspection'] });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.quality).toBe(90);
-    });
-
-    it('needs_fix_today failed_inspection decrements by 20', () => {
-      const ticket = makeTicket({ severity: 'needs_fix_today', events: ['failed_inspection'] });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.quality).toBe(80);
-    });
-
-    it('quality can go negative with multiple violations', () => {
+    it('two rejections → quality = -20, total = 80', () => {
       const tickets = [
-        makeTicket({ id: 't1', severity: 'immediate_interrupt', events: ['rejection', 'rejection', 'rejection'] }),
-        makeTicket({ id: 't2', severity: 'immediate_interrupt', events: ['rejection'] }),
+        makeTicket({ id: 't1', events: ['rejection'] }),
+        makeTicket({ id: 't2', events: ['rejection'] }),
       ];
-      const result = computeScore(makeInput({ tickets, completedCount: 2, maxCompletedByAnyUser: 2 }));
-      // 100 - (15*4)*4 rejections = 100 - 240 = -140
-      expect(result.quality).toBe(-140);
+      const result = computeScore(makeInput({ tickets }));
+      expect(result.quality).toBe(-20);
+      expect(result.total).toBe(80);
+    });
+
+    it('rejection applies same penalty regardless of severity', () => {
+      const minor     = makeTicket({ id: 't1', severity: 'minor',               events: ['rejection'] });
+      const urgent    = makeTicket({ id: 't2', severity: 'needs_fix_today',     events: ['rejection'] });
+      const interrupt = makeTicket({ id: 't3', severity: 'immediate_interrupt', events: ['rejection'] });
+      const result = computeScore(makeInput({ tickets: [minor, urgent, interrupt] }));
+      // Three rejections: 3 × -10 = -30
+      expect(result.quality).toBe(-30);
+    });
+
+    it('failed_inspection does NOT affect score in simplified model', () => {
+      const ticket = makeTicket({ events: ['failed_inspection'] });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.quality).toBe(0); // no rejection, no penalty
+    });
+
+    it('quality can go deep negative with many rejections', () => {
+      const tickets = Array.from({ length: 5 }, (_, i) =>
+        makeTicket({ id: `t${i}`, events: ['rejection', 'rejection'] })
+      );
+      const result = computeScore(makeInput({ tickets }));
+      // 10 rejections: -100
+      expect(result.quality).toBe(-100);
+      expect(result.total).toBe(0);
     });
   });
 
-  // ─── Consistency ────────────────────────────────────────────────────────────
+  // ─── Consistency (skips) ─────────────────────────────────────────────────────
 
-  describe('consistency score', () => {
-    it('no recurring tickets → consistency=100', () => {
-      const result = computeScore(makeInput({ tickets: [makeTicket()] }));
-      expect(result.consistency).toBe(100);
-    });
-
-    it('zero skips in period → +10 streak bonus (110)', () => {
+  describe('consistency — skip penalties', () => {
+    it('no skipped recurring tasks → consistency = 0', () => {
       const ticket = makeTicket({ isRecurring: true, wasSkipped: false });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.consistency).toBe(110); // 100 - 0 + 10 streak
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.consistency).toBe(0);
     });
 
-    it('1 of 2 recurring tickets skipped → 100 - 25 = 75', () => {
-      const tickets = [
-        makeTicket({ id: 't1', isRecurring: true, wasSkipped: false }),
-        makeTicket({ id: 't2', isRecurring: true, wasSkipped: true }),
-      ];
-      const result = computeScore(makeInput({ tickets, completedCount: 1, maxCompletedByAnyUser: 1 }));
-      // 1 skipped of 2 total: penalty = 1*(50/2) = 25. No streak bonus.
-      expect(result.consistency).toBe(75);
+    it('one skipped recurring task → consistency = -5', () => {
+      const ticket = makeTicket({ isRecurring: true, wasSkipped: true });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.consistency).toBe(-5);
+      expect(result.total).toBe(95);
     });
 
-    it('all recurring tickets skipped → 50', () => {
+    it('two skipped recurring tasks → consistency = -10', () => {
       const tickets = [
         makeTicket({ id: 't1', isRecurring: true, wasSkipped: true }),
         makeTicket({ id: 't2', isRecurring: true, wasSkipped: true }),
       ];
       const result = computeScore(makeInput({ tickets }));
-      // 2/2 skipped: penalty = 2*(50/2) = 50. No streak bonus.
-      expect(result.consistency).toBe(50);
+      expect(result.consistency).toBe(-10);
+    });
+
+    it('skipped non-recurring task does NOT affect consistency', () => {
+      const ticket = makeTicket({ isRecurring: false, wasSkipped: true });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.consistency).toBe(0);
     });
   });
 
-  // ─── Speed ──────────────────────────────────────────────────────────────────
+  // ─── Speed (lateness) ────────────────────────────────────────────────────────
 
-  describe('speed score', () => {
-    it('completed within deadline → 100', () => {
+  describe('speed — lateness penalties', () => {
+    it('submitted within deadline → speed = 0 (no penalty)', () => {
       const ticket = makeTicket({
         severity: 'minor',
-        openedAt: new Date('2024-01-10T08:00:00Z'),
-        submittedAt: new Date('2024-01-10T10:00:00Z'), // 2h, well within 48h
+        openedAt:    new Date('2024-01-10T08:00:00Z'),
+        submittedAt: new Date('2024-01-10T10:00:00Z'), // 2h, within 48h
       });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.speed).toBe(100);
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.speed).toBe(0);
     });
 
-    it('over deadline: loses 5 per hour', () => {
+    it('minor ticket 1 day late → speed = -3', () => {
       const ticket = makeTicket({
         severity: 'minor',
-        openedAt: new Date('2024-01-10T08:00:00Z'),
-        submittedAt: new Date('2024-01-13T08:00:00Z'), // 72h, 24h over 48h deadline
+        openedAt:    new Date('2024-01-10T08:00:00Z'),
+        submittedAt: new Date('2024-01-13T08:00:00Z'), // 72h = 48h + 24h = 1 day late
       });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      // 24 hours over deadline → -5 * 24 = -120 penalty → 100-120 = -20, floor -100
-      expect(result.speed).toBe(-20);
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.speed).toBe(-3);
+      expect(result.total).toBe(97);
     });
 
-    it('speed floor is -100', () => {
+    it('minor ticket 3 days late → speed = -9', () => {
       const ticket = makeTicket({
         severity: 'minor',
-        openedAt: new Date('2024-01-01T08:00:00Z'),
-        submittedAt: new Date('2024-02-01T08:00:00Z'), // 31 days over deadline
+        openedAt:    new Date('2024-01-10T08:00:00Z'),
+        submittedAt: new Date('2024-01-15T08:00:00Z'), // 120h = 48h + 72h = 3 days late
       });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.speed).toBe(-100);
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.speed).toBe(-9);
     });
 
-    it('immediate_interrupt 2h deadline: 1h over = -5', () => {
+    it('immediate_interrupt submitted 1 day after 2h deadline → speed = -3', () => {
       const ticket = makeTicket({
         severity: 'immediate_interrupt',
-        openedAt: new Date('2024-01-10T08:00:00Z'),
-        submittedAt: new Date('2024-01-10T11:00:00Z'), // 3h, 1h over 2h deadline
+        openedAt:    new Date('2024-01-10T08:00:00Z'),
+        submittedAt: new Date('2024-01-11T10:00:00Z'), // 26h = 2h + 24h = 1 day late
       });
-      const result = computeScore(makeInput({ tickets: [ticket], completedCount: 1, maxCompletedByAnyUser: 1 }));
-      expect(result.speed).toBe(95);
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.speed).toBe(-3);
+    });
+
+    it('two late tickets → speed penalties are summed', () => {
+      const t1 = makeTicket({ id: 't1', severity: 'minor', openedAt: new Date('2024-01-10T08:00:00Z'), submittedAt: new Date('2024-01-13T08:00:00Z') }); // 1 day late
+      const t2 = makeTicket({ id: 't2', severity: 'minor', openedAt: new Date('2024-01-10T08:00:00Z'), submittedAt: new Date('2024-01-14T08:00:00Z') }); // 2 days late
+      const result = computeScore(makeInput({ tickets: [t1, t2] }));
+      expect(result.speed).toBe(-9); // (1+2) days * 3 = -9
+    });
+
+    it('not yet submitted → no speed penalty', () => {
+      const ticket = makeTicket({ submittedAt: undefined });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.speed).toBe(0);
     });
   });
 
-  // ─── Volume ─────────────────────────────────────────────────────────────────
+  // ─── Perfect period bonus ────────────────────────────────────────────────────
 
-  describe('volume score', () => {
-    it('user is the max → volume=100', () => {
-      const result = computeScore(makeInput({ completedCount: 5, maxCompletedByAnyUser: 5 }));
-      expect(result.volume).toBe(100);
+  describe('perfect period bonus', () => {
+    it('ticket completed on time, no rejections, no skips → +5 bonus', () => {
+      const ticket = makeTicket({ events: ['completed'], isRecurring: false, wasSkipped: false });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.volume).toBe(5);
+      expect(result.total).toBe(105); // 100 + 5 bonus
     });
 
-    it('user completed half of max → volume=50', () => {
-      const result = computeScore(makeInput({ completedCount: 3, maxCompletedByAnyUser: 6 }));
-      expect(result.volume).toBeCloseTo(50);
+    it('any rejection → no bonus', () => {
+      const ticket = makeTicket({ events: ['rejection'] });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.volume).toBe(0);
     });
 
-    it('maxCompletedByAnyUser=0 → volume=0 (no division by zero)', () => {
-      const result = computeScore(makeInput({ completedCount: 0, maxCompletedByAnyUser: 0 }));
+    it('any skip → no bonus', () => {
+      const ticket = makeTicket({ isRecurring: true, wasSkipped: true });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.volume).toBe(0);
+    });
+
+    it('late submission → no bonus', () => {
+      const ticket = makeTicket({
+        severity: 'minor',
+        openedAt:    new Date('2024-01-10T08:00:00Z'),
+        submittedAt: new Date('2024-01-13T08:00:00Z'), // 1 day late
+      });
+      const result = computeScore(makeInput({ tickets: [ticket] }));
+      expect(result.volume).toBe(0);
+    });
+
+    it('no tickets → no bonus (nothing was done)', () => {
+      const result = computeScore(makeInput());
       expect(result.volume).toBe(0);
     });
   });
 
-  // ─── Total calculation ───────────────────────────────────────────────────────
+  // ─── Combined scenarios ──────────────────────────────────────────────────────
 
-  describe('total calculation', () => {
-    it('formula: total = quality*0.4 + consistency*0.3 + speed*0.2 + volume*0.1', () => {
-      const result = computeScore(
-        makeInput({
-          tickets: [makeTicket({ events: ['completed'], isRecurring: false })],
-          completedCount: 5,
-          maxCompletedByAnyUser: 5,
-        })
+  describe('combined scenarios', () => {
+    it('1 rejection + 1 skip: total = 100 - 10 - 5 = 85', () => {
+      const tickets = [
+        makeTicket({ id: 't1', events: ['rejection'] }),
+        makeTicket({ id: 't2', isRecurring: true, wasSkipped: true }),
+      ];
+      const result = computeScore(makeInput({ tickets }));
+      expect(result.total).toBe(85);
+    });
+
+    it('score can go negative with many violations', () => {
+      const tickets = Array.from({ length: 15 }, (_, i) =>
+        makeTicket({ id: `t${i}`, events: ['rejection'] })
       );
-      const expected = result.quality * 0.4 + result.consistency * 0.3 + result.speed * 0.2 + result.volume * 0.1;
-      expect(result.total).toBeCloseTo(expected);
+      const result = computeScore(makeInput({ tickets }));
+      expect(result.total).toBe(100 - 15 * 10); // -50
     });
   });
 });

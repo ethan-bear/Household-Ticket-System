@@ -15,7 +15,8 @@
     "tickets": "Tareas",
     "report": "Reporte",
     "chat": "Chat",
-    "templates": "Plantillas"
+    "templates": "Plantillas",
+    "team": "Equipo"
   },
   "ticket": {
     "create": "Crear Tarea",
