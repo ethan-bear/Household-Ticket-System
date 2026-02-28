@@ -53,6 +53,7 @@ function PenaltyBadge({ value }: { value: number }) {
 export function WeeklyReport() {
   const { t } = useTranslation();
   const [weekOffset, setWeekOffset] = useState(0);
+  const [showLegend, setShowLegend] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['report', weekOffset],
@@ -72,6 +73,83 @@ export function WeeklyReport() {
       </header>
 
       <div className="p-6 max-w-4xl mx-auto space-y-6">
+
+        {/* Scoring Legend */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowLegend((v) => !v)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50"
+          >
+            <span className="font-semibold text-gray-900">📊 Scoring Legend</span>
+            <span className="text-gray-400 text-sm">{showLegend ? '▲ Hide' : '▼ Show'}</span>
+          </button>
+          {showLegend && (
+            <div className="px-4 pb-4 space-y-4 border-t pt-4">
+
+              <div className="text-xs text-gray-500 mb-2">
+                Final score = <span className="font-mono">(Quality × 0.40) + (Consistency × 0.30) + (Speed × 0.20) + (Volume × 0.10)</span>. All dimensions start at 100. Scores can go negative.
+              </div>
+
+              {/* Severity multipliers */}
+              <div>
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Severity Multipliers</p>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="bg-green-50 rounded-lg p-2 text-center"><span className="font-semibold text-green-700">Minor</span><br/><span className="text-gray-500">1×</span></div>
+                  <div className="bg-yellow-50 rounded-lg p-2 text-center"><span className="font-semibold text-yellow-700">Needs Fix Today</span><br/><span className="text-gray-500">2×</span></div>
+                  <div className="bg-red-50 rounded-lg p-2 text-center"><span className="font-semibold text-red-700">Immediate Interrupt</span><br/><span className="text-gray-500">4×</span></div>
+                </div>
+              </div>
+
+              {/* Quality */}
+              <div>
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Quality — 40% <span className="normal-case font-normal text-gray-400">(base 100, only decreases)</span></p>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-gray-100">
+                    <tr><td className="py-1 text-gray-600">Ticket rejected (sent back from Needs Review)</td><td className="py-1 text-right text-red-600 font-mono">−15 × multiplier</td></tr>
+                    <tr><td className="py-1 text-gray-500 pl-4">→ Minor rejection</td><td className="py-1 text-right text-red-500 font-mono">−15 pts</td></tr>
+                    <tr><td className="py-1 text-gray-500 pl-4">→ Needs Fix Today rejection</td><td className="py-1 text-right text-red-500 font-mono">−30 pts</td></tr>
+                    <tr><td className="py-1 text-gray-500 pl-4">→ Immediate Interrupt rejection</td><td className="py-1 text-right text-red-500 font-mono">−60 pts</td></tr>
+                    <tr><td className="py-1 text-gray-600">Failed inspection</td><td className="py-1 text-right text-red-600 font-mono">−10 × multiplier</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Consistency */}
+              <div>
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Consistency — 30% <span className="normal-case font-normal text-gray-400">(base 100)</span></p>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-gray-100">
+                    <tr><td className="py-1 text-gray-600">Each skipped recurring task</td><td className="py-1 text-right text-red-600 font-mono">−(50 ÷ total recurring)</td></tr>
+                    <tr><td className="py-1 text-gray-600">Zero skips all period (perfect streak)</td><td className="py-1 text-right text-green-600 font-mono">+10 pts</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Speed */}
+              <div>
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Speed — 20% <span className="normal-case font-normal text-gray-400">(based on deadlines)</span></p>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-gray-100">
+                    <tr><td className="py-1 text-gray-600">Completed within deadline</td><td className="py-1 text-right text-green-600 font-mono">100 pts</td></tr>
+                    <tr><td className="py-1 text-gray-600">Each hour past deadline</td><td className="py-1 text-right text-red-600 font-mono">−5 pts (min −100)</td></tr>
+                    <tr><td className="py-1 text-gray-500 pl-4">Immediate Interrupt deadline</td><td className="py-1 text-right text-gray-500 font-mono">2 hours</td></tr>
+                    <tr><td className="py-1 text-gray-500 pl-4">Needs Fix Today deadline</td><td className="py-1 text-right text-gray-500 font-mono">8 hours</td></tr>
+                    <tr><td className="py-1 text-gray-500 pl-4">Minor deadline</td><td className="py-1 text-right text-gray-500 font-mono">48 hours</td></tr>
+                    <tr><td className="py-1 text-gray-600">Minor with no due date — same calendar day</td><td className="py-1 text-right text-green-600 font-mono">100 pts</td></tr>
+                    <tr><td className="py-1 text-gray-600">Minor with no due date — different day</td><td className="py-1 text-right text-yellow-600 font-mono">80 pts</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Volume */}
+              <div>
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1">Volume — 10% <span className="normal-case font-normal text-gray-400">(relative output, 0–100)</span></p>
+                <p className="text-xs text-gray-600">Your completions ÷ highest completions by anyone this period × 100. The employee who closes the most tickets scores 100; everyone else scores proportionally less.</p>
+              </div>
+
+            </div>
+          )}
+        </div>
 
         {/* Week navigation */}
         <div className="flex items-center gap-4">
