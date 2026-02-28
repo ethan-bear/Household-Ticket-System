@@ -5,10 +5,11 @@ import { prisma } from '../lib/prisma';
 
 const router = Router();
 
-const SEVERITY_MULTIPLIER: Record<string, number> = {
-  minor: 1,
-  needs_fix_today: 2,
-  immediate_interrupt: 4,
+// Severity-based deadline in ms — matches the scoring engine
+const DEADLINE_MS: Record<string, number> = {
+  immediate_interrupt: 2  * 60 * 60 * 1000,
+  needs_fix_today:     8  * 60 * 60 * 1000,
+  minor:               48 * 60 * 60 * 1000,
 };
 
 // GET /api/reports/weekly?weekOffset=0
@@ -39,7 +40,7 @@ router.get(
       }),
     ]);
 
-    // --- Per-employee stats + penalties ---
+    // --- Per-employee stats using simplified scoring rules ---
     const employees = await prisma.user.findMany({
       where: { role: 'employee' },
       select: { id: true, name: true, specialty: true },
@@ -49,10 +50,11 @@ router.get(
       employees.map(async (emp) => {
         const empFilter = { ...periodFilter, assignedUserId: emp.id };
 
-        const [empOpen, empClosed, empSkipped, rejectedLogs] = await Promise.all([
+        const [empOpen, empClosed, empSkipped, rejectedLogs, closedTickets] = await Promise.all([
           prisma.ticket.count({ where: { ...empFilter, status: 'open' } }),
           prisma.ticket.count({ where: { ...empFilter, status: 'closed' } }),
           prisma.ticket.count({ where: { ...empFilter, status: 'skipped' } }),
+          // Rejections: needs_review → in_progress transitions
           prisma.ticketAuditLog.findMany({
             where: {
               fromStatus: 'needs_review',
@@ -60,18 +62,42 @@ router.get(
               createdAt: { gte: weekStart, lt: weekEnd },
               ticket: { assignedUserId: emp.id },
             },
-            include: { ticket: { select: { severity: true } } },
+          }),
+          // Closed tickets in this period for late-day calculation
+          prisma.ticket.findMany({
+            where: {
+              assignedUserId: emp.id,
+              status: 'closed',
+              closedAt: { gte: weekStart, lt: weekEnd },
+            },
+            select: { severity: true, createdAt: true, closedAt: true, dueAt: true },
           }),
         ]);
 
-        // Quality penalty: 15 × severity multiplier per rejection
-        const qualityPenalty = rejectedLogs.reduce((sum, log) => {
-          const mult = SEVERITY_MULTIPLIER[log.ticket.severity] ?? 1;
-          return sum + 15 * mult;
-        }, 0);
+        // Late-day penalty: −3 per calendar day past the effective deadline
+        // Uses explicit dueAt if set, otherwise the severity-based deadline
+        let daysLate = 0;
+        for (const ticket of closedTickets) {
+          if (!ticket.closedAt) continue;
+          const effectiveDeadline = ticket.dueAt
+            ? ticket.dueAt.getTime()
+            : ticket.createdAt.getTime() + (DEADLINE_MS[ticket.severity] ?? DEADLINE_MS.minor);
+          const elapsed = ticket.closedAt.getTime();
+          if (elapsed > effectiveDeadline) {
+            daysLate += Math.ceil((elapsed - effectiveDeadline) / (24 * 60 * 60 * 1000));
+          }
+        }
 
-        // Consistency penalty: 50 / total recurring assigned (simplified: 10 per skip)
-        const consistencyPenalty = empSkipped * 10;
+        // New simple penalties (matching scoringEngine.ts)
+        const qualityPenalty     = rejectedLogs.length * 10;  // −10 per rejection
+        const consistencyPenalty = empSkipped * 5;            // −5 per skip
+        const latePenalty        = daysLate * 3;              // −3 per late day
+        const totalPenalty       = qualityPenalty + consistencyPenalty + latePenalty;
+
+        // Perfect-period bonus: +5 if work was done and zero violations
+        const hasWork   = empClosed > 0 || empOpen > 0 || empSkipped > 0;
+        const isPerfect = hasWork && totalPenalty === 0;
+        const bonus     = isPerfect ? 5 : 0;
 
         return {
           user: emp,
@@ -79,9 +105,14 @@ router.get(
           closed: empClosed,
           skipped: empSkipped,
           rejected: rejectedLogs.length,
+          daysLate,
           qualityPenalty,
           consistencyPenalty,
-          totalPenalty: qualityPenalty + consistencyPenalty,
+          latePenalty,
+          totalPenalty,
+          bonus,
+          // Net score impact this period (positive = gained pts, negative = lost pts)
+          scoreImpact: bonus - totalPenalty,
         };
       })
     );
@@ -97,8 +128,6 @@ router.get(
     });
 
     // --- Trends & patterns ---
-
-    // Hot spots: areas with the most tickets created this week
     const ticketsThisWeek = await prisma.ticket.findMany({
       where: periodFilter,
       select: { area: true, category: true, status: true, severity: true, dueAt: true },
@@ -111,7 +140,6 @@ router.get(
       areaMap[key].total++;
       if (t.status === 'skipped') areaMap[key].skipped++;
     }
-    // Add rejection counts per area from audit logs
     const areaRejections = await prisma.ticketAuditLog.findMany({
       where: { fromStatus: 'needs_review', toStatus: 'in_progress', createdAt: { gte: weekStart, lt: weekEnd } },
       include: { ticket: { select: { area: true, category: true } } },
@@ -126,20 +154,14 @@ router.get(
       .sort((a, b) => b.issueScore - a.issueScore)
       .slice(0, 3);
 
-    // Overdue tickets (dueAt passed, not closed/skipped)
     const overdueCount = await prisma.ticket.count({
-      where: {
-        dueAt: { lt: now },
-        status: { notIn: ['closed', 'skipped'] },
-      },
+      where: { dueAt: { lt: now }, status: { notIn: ['closed', 'skipped'] } },
     });
 
-    // Employees with zero completions this week
     const noCompletions = employeeStats
       .filter((s) => s.closed === 0 && (s.open > 0 || s.skipped > 0))
       .map((s) => s.user.name);
 
-    // Most penalized employee
     const mostPenalized = [...employeeStats].sort((a, b) => b.totalPenalty - a.totalPenalty)[0];
 
     res.json({
@@ -151,7 +173,7 @@ router.get(
           inProgress: inProgressCount,
           closed: closedCount,
           skipped: skippedCount,
-          reopened: rejectionLogs, // reopened = rejected back to in_progress
+          reopened: rejectionLogs,
         },
         employeeStats,
         repeatIssues,

@@ -10,9 +10,13 @@ interface EmployeeStat {
   closed: number;
   skipped: number;
   rejected: number;
+  daysLate: number;
   qualityPenalty: number;
   consistencyPenalty: number;
+  latePenalty: number;
   totalPenalty: number;
+  bonus: number;
+  scoreImpact: number;
 }
 
 interface RepeatIssue {
@@ -45,10 +49,6 @@ interface ReportData {
   };
 }
 
-function PenaltyBadge({ value }: { value: number }) {
-  if (value === 0) return <span className="text-gray-400">—</span>;
-  return <span className="text-red-600 font-semibold">−{value}</span>;
-}
 
 export function WeeklyReport() {
   const { t } = useTranslation();
@@ -146,28 +146,48 @@ export function WeeklyReport() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Closed</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Open</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Skipped</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Reopened</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Quality Pen.</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Consist. Pen.</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total Pen.</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase" title="−10 pts each">Rejected</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase" title="−5 pts each">Skipped</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase" title="−3 pts per day">Late Days</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Bonus</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Score Impact</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {data.employeeStats.map((stat) => (
-                    <tr key={stat.user.id} className={stat.totalPenalty > 0 ? 'bg-red-50/30' : ''}>
+                    <tr key={stat.user.id} className={stat.totalPenalty > 0 ? 'bg-red-50/30' : stat.bonus > 0 ? 'bg-green-50/20' : ''}>
                       <td className="px-4 py-3">
                         <span className="font-medium text-gray-900">{stat.user.name}</span>
                         {stat.user.specialty && <span className="ml-2 text-xs text-gray-400 capitalize">{stat.user.specialty}</span>}
                       </td>
                       <td className="px-4 py-3 text-center text-green-700 font-semibold">{stat.closed}</td>
-                      <td className="px-4 py-3 text-center text-gray-500">{stat.open}</td>
-                      <td className="px-4 py-3 text-center text-yellow-600">{stat.skipped || '—'}</td>
-                      <td className="px-4 py-3 text-center text-red-600">{stat.rejected || '—'}</td>
-                      <td className="px-4 py-3 text-center"><PenaltyBadge value={stat.qualityPenalty} /></td>
-                      <td className="px-4 py-3 text-center"><PenaltyBadge value={stat.consistencyPenalty} /></td>
-                      <td className="px-4 py-3 text-center font-bold"><PenaltyBadge value={stat.totalPenalty} /></td>
+                      <td className="px-4 py-3 text-center">
+                        {stat.rejected > 0
+                          ? <span className="text-red-600 font-semibold">{stat.rejected} <span className="text-xs font-normal">(−{stat.qualityPenalty})</span></span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {stat.skipped > 0
+                          ? <span className="text-yellow-600 font-semibold">{stat.skipped} <span className="text-xs font-normal">(−{stat.consistencyPenalty})</span></span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {stat.daysLate > 0
+                          ? <span className="text-orange-600 font-semibold">{stat.daysLate} <span className="text-xs font-normal">(−{stat.latePenalty})</span></span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {stat.bonus > 0
+                          ? <span className="text-green-600 font-semibold">+{stat.bonus}</span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center font-bold">
+                        {stat.scoreImpact > 0
+                          ? <span className="text-green-600">+{stat.scoreImpact}</span>
+                          : stat.scoreImpact < 0
+                            ? <span className="text-red-600">−{Math.abs(stat.scoreImpact)}</span>
+                            : <span className="text-gray-400">0</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
