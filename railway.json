@@ -5,7 +5,7 @@
     "buildCommand": "npx pnpm@8 install && npx pnpm@8 --filter domain build && npx pnpm@8 --filter api build"
   },
   "deploy": {
-    "startCommand": "node apps/api/dist/index.js",
+    "startCommand": "npx prisma migrate deploy && npx prisma db seed && node apps/api/dist/index.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
