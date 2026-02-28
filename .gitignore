@@ -5,7 +5,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
-prisma/migrations/
 *.log
 coverage/
 .turbo/
