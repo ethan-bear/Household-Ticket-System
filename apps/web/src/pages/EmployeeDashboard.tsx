@@ -134,7 +134,7 @@ export function EmployeeDashboard() {
             >
               {i18n.language === 'en' ? 'ES' : 'EN'}
             </button>
-            <button onClick={logout} className="text-sm text-gray-500">{t('auth.logout')}</button>
+            <button onClick={logout} className="text-sm text-gray-500 w-16 text-center">{t('auth.logout')}</button>
           </div>
         </header>
 
