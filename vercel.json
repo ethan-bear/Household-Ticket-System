@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npx pnpm@8 install && npx pnpm@8 --filter web build",
+  "installCommand": "npx pnpm@8 install",
+  "buildCommand": "npx pnpm@8 --filter web build",
   "outputDirectory": "apps/web/dist",
   "framework": "vite",
   "rewrites": [
